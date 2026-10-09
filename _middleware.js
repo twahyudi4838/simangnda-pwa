@@ -1,0 +1,5 @@
+const enc=new TextEncoder();
+function b64u(bytes){return btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')}
+async function sign(value,secret){const key=await crypto.subtle.importKey('raw',enc.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);return b64u(await crypto.subtle.sign('HMAC',key,enc.encode(value)));}
+async function valid(token,secret){if(!token||!secret)return false;const parts=token.split('.');if(parts.length!==2)return false;const [ts,sig]=parts;if(!/^\d+$/.test(ts)||Date.now()-Number(ts)>7*24*60*60*1000||Number(ts)>Date.now())return false;return (await sign(ts,secret))===sig;}
+export async function onRequest({request,env,next}){const url=new URL(request.url);if(url.pathname==='/login.html'||url.pathname==='/api/login'||url.pathname==='/favicon.ico')return next();if(!await valid((request.headers.get('Cookie')||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('simangnda_session='))?.split('=').slice(1).join('='),env.AUTH_SECRET)){return new Response('',{status:302,headers:{Location:'/login.html','Cache-Control':'no-store'}});}return next();}
